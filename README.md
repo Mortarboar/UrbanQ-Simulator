@@ -14,9 +14,9 @@
 ### 🌐 線上體驗 (Live Demo)
 本專案包含兩個漸進式的演化版本，請點擊下方連結直接在瀏覽器中體驗：
 
-* 🟢 **[版本一] 基礎網格迷宮版 (Basic Maze Edition)**：[點此遊玩]([請替換成基礎版網址_例如_.../basic.html])
+*  **[版本一] 基礎網格迷宮版 (Basic Maze Edition)**：[點此遊玩](https://github.com/Mortarboar/UrbanQ-Simulator/blob/main/basic.html)
   > *展示傳統 Q-Learning 演算法如何在絕對的牆壁與通道中尋找最短幾何路徑。*
-* 🏙️ **[版本二] 都市地形阻力版 (Urban Traffic Edition)**：[點此遊玩]([請替換成都市版網址_例如_.../urban.html])
+*  **[版本二] 都市地形阻力版 (Urban Traffic Edition)**：[點此遊玩](https://github.com/Mortarboar/UrbanQ-Simulator/blob/main/index.html)
   > *專題核心成果 導入時間成本與地形權重（塞車、快速道路），模擬真實世界的動線分流。*
 
 ---
@@ -70,4 +70,4 @@
 
 1. 複製此專案到本機：
    ```bash
-   git clone [https://github.com/](https://github.com/)[你的GitHub帳號]/[你的專案名稱].git
+   git clone https://github.com/mortarboar/UrbanQ-Simulator.git
