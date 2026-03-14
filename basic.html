@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Q-Learning 迷宮探索互動教學</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+    <style>
+
+        :root {
+
+            --wall-color: #34495e;
+
+            --path-color: #ecf0f1;
+
+            --start-color: #2ecc71;
+
+            --end-color: #e74c3c;
+
+            --agent-color: #f1c40f;
+
+            --highlight-color: #3498db;
+
+        }
+
+
+        body {
+
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+            margin: 0;
+
+            padding: 0;
+
+            display: flex;
+
+            height: 100vh; /* 桌面端保持全高 */
+
+            background-color: #f5f6fa;
+
+        }
+
+       
+
+        /* Layout (桌面版) */
+
+        .sidebar {
+
+            width: 320px; /* 固定寬度 */
+
+            background: white;
+
+            padding: 20px;
+
+            overflow-y: auto;
+
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 15px;
+
+        }
+
+        .main-content {
+
+            flex: 1;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: flex-start;
+
+            padding: 20px;
+
+            overflow-y: auto;
+
+        }
+
+       
+
+        h2, h3 { margin-top: 0; color: #2c3e50; }
+
+       
+
+        /* Controls */
+
+        .control-group { border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 10px; }
+
+        .control-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; }
+
+        .slider-container { display: flex; align-items: center; gap: 10px; }
+
+        input[type="range"] { flex: 1; }
+
+       
+
+        button { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; transition: 0.2s; margin-bottom: 5px; width: 100%; }
+
+        button:hover { background: #2980b9; }
+
+        button.secondary { background: #95a5a6; }
+
+        button.secondary:hover { background: #7f8c8d; }
+
+        button.danger { background: #e74c3c; }
+
+        button.success { background: #2ecc71; }
+
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
+        /* Maze Grid */
+
+        #maze-container { margin: 20px 0; position: relative; }
+
+        .grid { display: grid; gap: 1px; background-color: #bdc3c7; border: 2px solid #2c3e50; }
+
+        .cell {
+
+            width: 40px; height: 40px; background-color: var(--path-color);
+
+            display: flex; align-items: center; justify-content: center;
+
+            font-size: 10px; color: #7f8c8d; cursor: pointer; position: relative;
+
+            transition: background-color 0.2s;
+
+            user-select: none;
+
+        }
+
+       
+
+        /* Cell Types */
+
+        .cell.wall { background-color: var(--wall-color); }
+
+        .cell.start { background-color: var(--start-color); color: white; font-weight: bold; }
+
+        .cell.end { background-color: var(--end-color); color: white; font-weight: bold; }
+
+       
+
+        /* Agent */
+
+        .agent {
+
+            width: 25px; height: 25px; background-color: var(--agent-color);
+
+            border-radius: 50%; position: absolute;
+
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+
+            transition: all 0.1s linear;
+
+            z-index: 10;
+
+            pointer-events: none;
+
+        }
+
+
+        /* Q-Table Visuals */
+
+        .cell .arrow { position: absolute; font-size: 14px; font-weight: bold; opacity: 0; pointer-events: none; }
+
+        .cell:hover .q-tooltip { display: block; }
+
+        .q-tooltip {
+
+            display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+
+            background: rgba(0,0,0,0.8); color: white; padding: 5px; border-radius: 4px;
+
+            font-size: 10px; white-space: pre; z-index: 20; width: 120px; text-align: left;
+
+        }
+
+
+        /* Stats & Chart */
+
+        .stats-panel {
+
+            display: flex;
+
+            gap: 20px;
+
+            margin-bottom: 10px;
+
+            font-size: 1.1em;
+
+            background: white;
+
+            padding: 10px 20px;
+
+            border-radius: 8px;
+
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+
+        }
+
+        .stat-item span { font-weight: bold; color: #e67e22; }
+
+       
+
+        /* 圖表容器 (固定尺寸優化) */
+
+        #chart-container {
+
+            width: 100%;
+
+            max-width: 500px;
+
+            height: 300px;
+
+            background: white;
+
+            padding: 15px;
+
+            border-radius: 8px;
+
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+
+            margin-top: 20px;
+
+        }
+
+        #chart-container h3 { margin-bottom: 10px; font-size: 1.1em; }
+
+
+        /* Edit Mode UI */
+
+        .edit-controls { display: flex; gap: 5px; margin-bottom: 10px; }
+
+        .mode-btn { flex: 1; padding: 5px; font-size: 0.8em; opacity: 0.6; }
+
+        .mode-btn.active { opacity: 1; border: 2px solid #2c3e50; }
+
+
+        /* Explanation Section */
+
+        .info-section {
+
+            background: white;
+
+            padding: 20px;
+
+            border-radius: 8px;
+
+            margin-top: 20px;
+
+            max-width: 500px;
+
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+
+            line-height: 1.6;
+
+        }
+
+        code { background: #f1f2f6; padding: 2px 5px; border-radius: 3px; color: #c0392b; }
+
+       
+
+        /* --- 行動裝置響應式設計 --- */
+
+        @media (max-width: 768px) {
+
+            body {
+
+                flex-direction: column; /* 垂直堆疊 */
+
+                height: auto; /* 允許垂直滾動 */
+
+            }
+
+
+            .sidebar {
+
+                width: 100%; /* 佔滿寬度 */
+
+                padding: 15px;
+
+                order: 1; /* 側邊欄放在最上面 */
+
+            }
+
+           
+
+            .main-content {
+
+                width: 100%;
+
+                padding: 15px;
+
+                order: 2; /* 主內容放在下面 */
+
+                /* 讓主內容區塊可以靠左對齊，在小螢幕上觀感更好 */
+
+                align-items: flex-start;
+
+            }
+
+           
+
+            .stats-panel {
+
+                width: 100%;
+
+                justify-content: space-between;
+
+                font-size: 1em;
+
+            }
+
+
+            /* 確保迷宮在小螢幕上可以顯示，並允許滾動 */
+
+            #maze-container {
+
+                overflow-x: auto;
+
+                margin: 10px 0;
+
+                width: 100%;
+
+                /* 讓迷宮中心對齊 */
+
+                display: flex;
+
+                justify-content: center;
+
+            }
+
+           
+
+            /* 縮小單元格，讓 10x10 的迷宮可以盡量在單一螢幕上顯示 */
+
+            .cell {
+
+                width: 30px;
+
+                height: 30px;
+
+                font-size: 8px;
+
+            }
+
+           
+
+            /* 讓圖表和概念說明區佔滿可用寬度 */
+
+            #chart-container, .info-section {
+
+                max-width: 100%;
+
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+
+<div class="sidebar">
+
+    <h2>Q-Learning 實驗室</h2>
+
+   
+
+    <div class="control-group">
+
+        <h3>1. 迷宮設定</h3>
+
+        <div class="slider-container">
+
+            <label>大小: <span id="size-val">10</span>x<span id="size-val2">10</span></label>
+
+            <input type="range" id="size-slider" min="5" max="20" value="10">
+
+        </div>
+
+        <div class="edit-controls">
+
+            <button class="mode-btn active" onclick="setEditMode('wall')" style="background:var(--wall-color)">牆壁</button>
+
+            <button class="mode-btn" onclick="setEditMode('start')" style="background:var(--start-color)">起點</button>
+
+            <button class="mode-btn" onclick="setEditMode('end')" style="background:var(--end-color)">終點</button>
+
+            <button class="mode-btn" onclick="setEditMode('erase')" style="background:var(--path-color); color:black">清除</button>
+
+        </div>
+
+        <button class="secondary" onclick="generateMaze()">重置迷宮 (清空)</button>
+
+        <button class="secondary" onclick="loadExampleMaze()">載入範例迷宮</button>
+
+        <div style="display:flex; gap:5px; margin-top:5px;">
+
+            <button class="secondary" onclick="saveMaze()">儲存</button>
+
+            <button class="secondary" onclick="loadMazeUser()">讀取</button>
+
+        </div>
+
+    </div>
+
+
+    <div class="control-group">
+
+        <h3>2. 參數調整 (Hyperparameters)</h3>
+
+        <label title="學習率：AI 更新舊知識的速度">Learning Rate (α): <span id="alpha-val">0.1</span></label>
+
+        <input type="range" id="alpha" min="0.01" max="1" step="0.01" value="0.1">
+
+       
+
+        <label title="折現因子：AI 多重視未來的獎勵">Discount Factor (γ): <span id="gamma-val">0.9</span></label>
+
+        <input type="range" id="gamma" min="0.1" max="0.99" step="0.01" value="0.9">
+
+       
+
+        <label title="探索率：AI 隨機嘗試新動作的機率">Exploration (ε): <span id="epsilon-val">0.1</span></label>
+
+        <input type="range" id="epsilon" min="0" max="1" step="0.01" value="0.1">
+
+
+        <label title="速度：每一步的延遲時間">訓練速度 (Delay): <span id="speed-val">50</span>ms</label>
+
+        <input type="range" id="speed" min="0" max="500" step="10" value="50" style="direction: rtl">
+
+    </div>
+
+
+    <div class="control-group">
+
+        <h3>3. 操作控制</h3>
+
+        <button class="success" id="btn-standard-train" onclick="toggleStandardTraining()">開始標準訓練 (逐格)</button>
+
+        <button class="success" id="btn-fast-train" onclick="toggleFastTraining()">開始加速訓練 (批次)</button>
+
+        <button id="btn-step" onclick="singleStep()">單步執行</button>
+
+        <button class="secondary" onclick="resetQTable()">重置 Q-Table</button>
+
+        <button class="danger" onclick="showBestPath()">顯示目前最佳路徑</button>
+
+    </div>
+
+   
+
+    <div class="control-group">
+
+        <label><input type="checkbox" id="check-heatmap" checked> 顯示熱力圖 (Q值)</label>
+
+        <label><input type="checkbox" id="check-arrows" checked> 顯示策略箭頭</label>
+
+    </div>
+
+</div>
+
+
+<div class="main-content">
+
+    <div class="stats-panel">
+
+        <div class="stat-item">Episode: <span id="disp-episode">0</span></div>
+
+        <div class="stat-item">Steps: <span id="disp-steps">0</span></div>
+
+        <div class="stat-item">Status: <span id="disp-status">Ready</span></div>
+
+    </div>
+
+
+    <div id="maze-container">
+
+        <div id="agent" class="agent"></div>
+
+        <div id="grid" class="grid"></div>
+
+    </div>
+
+   
+
+    <div id="chart-container">
+
+        <h3>訓練進度：每回合步數 (Steps per Episode)</h3>
+
+        <canvas id="performanceChart"></canvas>
+
+    </div>
+
+
+
+    <div class="info-section">
+
+        <h3>Q-Learning 概念解說</h3>
+
+        <p><strong>Q-Table:</strong> 這是 AI 的「作弊小抄」。每個格子有 4 個動作（上、下、左、右）。Q 值越高，代表在該格子做該動作越好。</p>
+
+        <p><strong>Reward (獎勵):</strong> AI 的目標是拿到最高分。撞牆扣分 (-10)，走一步扣小分 (-1)，走到終點加超級大分 (+100)。</p>
+
+        <p><strong>探索 vs 利用 (ε-greedy):</strong> 參數 ε (Epsilon) 決定 AI 是要「隨機亂走試試看」(探索)，還是要「照著目前最好的路走」(利用)。</p>
+
+        <ul>
+
+            <li><strong>α (Learning Rate):</strong> 設太大 AI 學得快但不穩；設太小學得慢。</li>
+
+            <li><strong>γ (Discount Factor):</strong> 設大 AI 有遠見 (重視終點獎勵)；設小 AI 短視近利。</li>
+
+        </ul>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/**
+
+ * Q-Learning Maze Webapp Logic with Performance Chart
+
+ */
+
+
+// --- 全局變數 ---
+
+let gridSize = 10;
+
+let maze = [];
+
+let qTable = {};
+
+let agentPos = {x: 0, y: 0};
+
+let startPos = {x: 0, y: 0};
+
+let endPos = {x: 9, y: 9};
+
+let isTraining = false;
+
+let trainingTimer = null;
+
+let currentTrainingMode = 'none';
+
+
+// 統計數據
+
+let episode = 0;
+
+let steps = 0;
+
+let isEpisodeRunning = false;
+
+let editMode = 'wall';
+
+
+// --- 性能追蹤變數 ---
+
+let performanceHistory = [];
+
+let myChart = null;
+
+
+// --- 初始化 ---
+
+window.onload = () => {
+
+    initMaze();
+
+    updateUIParams();
+
+    setupChart(); // 初始化圖表
+
+};
+
+
+// 監聽 Slider 更新數值顯示
+
+document.querySelectorAll('input[type=range]').forEach(input => {
+
+    input.addEventListener('input', updateUIParams);
+
+});
+
+
+function updateUIParams() {
+
+    document.getElementById('alpha-val').innerText = document.getElementById('alpha').value;
+
+    document.getElementById('gamma-val').innerText = document.getElementById('gamma').value;
+
+    document.getElementById('epsilon-val').innerText = document.getElementById('epsilon').value;
+
+    document.getElementById('speed-val').innerText = document.getElementById('speed').value;
+
+   
+
+    let newSize = document.getElementById('size-slider').value;
+
+    if(newSize != gridSize) {
+
+        document.getElementById('size-val').innerText = newSize;
+
+        document.getElementById('size-val2').innerText = newSize;
+
+    }
+
+    renderMazeVisuals();
+
+}
+
+
+// 改變迷宮大小時重置
+
+document.getElementById('size-slider').addEventListener('change', function() {
+
+    gridSize = parseInt(this.value);
+
+    initMaze();
+
+});
+
+
+function initMaze() {
+
+    stopTraining();
+
+    maze = [];
+
+    qTable = {};
+
+    episode = 0;
+
+    performanceHistory = []; // 清除歷史記錄
+
+   
+
+    // 初始化空迷宮
+
+    for(let y=0; y<gridSize; y++) {
+
+        let row = [];
+
+        for(let x=0; x<gridSize; x++) {
+
+            row.push(0);
+
+            qTable[`${x},${y}`] = {0:0, 1:0, 2:0, 3:0};
+
+        }
+
+        maze.push(row);
+
+    }
+
+   
+
+    // 預設起點終點
+
+    startPos = {x: 0, y: 0};
+
+    endPos = {x: gridSize-1, y: gridSize-1};
+
+    maze[startPos.y][startPos.x] = 2;
+
+    maze[endPos.y][endPos.x] = 3;
+
+   
+
+    resetAgent();
+
+    renderGrid();
+
+    if(myChart) updatePerformanceChart(); // 重置圖表
+
+}
+
+
+function renderGrid() {
+
+    const gridEl = document.getElementById('grid');
+
+    gridEl.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+
+    gridEl.innerHTML = '';
+
+   
+
+    for(let y=0; y<gridSize; y++) {
+
+        for(let x=0; x<gridSize; x++) {
+
+            let cell = document.createElement('div');
+
+            cell.className = 'cell';
+
+            cell.dataset.x = x;
+
+            cell.dataset.y = y;
+
+           
+
+            // 樣式
+
+            if(maze[y][x] === 1) cell.classList.add('wall');
+
+            if(maze[y][x] === 2) { cell.classList.add('start'); cell.innerText = 'S'; }
+
+            if(maze[y][x] === 3) { cell.classList.add('end'); cell.innerText = 'E'; }
+
+           
+
+            // 點擊編輯事件
+
+            cell.onmousedown = (e) => handleCellClick(x, y, e);
+
+            cell.onmouseover = (e) => { if(e.buttons === 1) handleCellClick(x, y, e); };
+
+
+            // Tooltip (顯示詳細 Q 值)
+
+            let tooltip = document.createElement('div');
+
+            tooltip.className = 'q-tooltip';
+
+            tooltip.id = `tooltip-${x}-${y}`;
+
+            cell.appendChild(tooltip);
+
+
+            // 箭頭 (顯示最佳策略)
+
+            let arrow = document.createElement('div');
+
+            arrow.className = 'arrow';
+
+            arrow.id = `arrow-${x}-${y}`;
+
+            cell.appendChild(arrow);
+
+
+            gridEl.appendChild(cell);
+
+        }
+
+    }
+
+    updateAgentView();
+
+    renderMazeVisuals();
+
+}
+
+
+function updateAgentView() {
+
+    const agentEl = document.getElementById('agent');
+
+   
+
+    const gridEl = document.getElementById('grid');
+
+    const cells = gridEl.children;
+
+    const index = agentPos.y * gridSize + agentPos.x;
+
+    if(cells[index]) {
+
+        const cellRect = cells[index].getBoundingClientRect();
+
+        const containerRect = document.getElementById('maze-container').getBoundingClientRect();
+
+       
+
+        agentEl.style.left = (cellRect.left - containerRect.left + 7.5) + 'px';
+
+        agentEl.style.top = (cellRect.top - containerRect.top + 7.5) + 'px';
+
+    }
+
+}
+
+
+// --- 編輯迷宮 ---
+
+function setEditMode(mode) {
+
+    editMode = mode;
+
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+
+    event.target.classList.add('active');
+
+}
+
+
+function handleCellClick(x, y, e) {
+
+    if(isTraining) return;
+
+   
+
+    if(editMode === 'start') {
+
+        maze[startPos.y][startPos.x] = 0;
+
+        startPos = {x, y};
+
+    } else if(editMode === 'end') {
+
+        maze[endPos.y][endPos.x] = 0;
+
+        endPos = {x, y};
+
+    }
+
+
+    if(editMode === 'wall') maze[y][x] = 1;
+
+    else if(editMode === 'erase') maze[y][x] = 0;
+
+    else if(editMode === 'start') maze[y][x] = 2;
+
+    else if(editMode === 'end') maze[y][x] = 3;
+
+
+    if(maze[startPos.y][startPos.x] !== 2) maze[startPos.y][startPos.x] = 2;
+
+    if(maze[endPos.y][endPos.x] !== 3) maze[endPos.y][endPos.x] = 3;
+
+
+    renderGrid();
+
+    resetAgent();
+
+}
+
+
+
+// --- Q-Learning 核心 ---
+
+
+const actions = [
+
+    {dx: 0, dy: -1}, {dx: 1, dy: 0}, {dx: 0, dy: 1}, {dx: -1, dy: 0}
+
+];
+
+
+function resetAgent() {
+
+    agentPos = {...startPos};
+
+    updateAgentView();
+
+    document.getElementById('disp-status').innerText = "Ready";
+
+}
+
+
+function getBestAction(x, y) {
+
+    let q = qTable[`${x},${y}`];
+
+    let maxVal = -Infinity;
+
+    let bestActions = [];
+
+   
+
+    for(let i=0; i<4; i++) {
+
+        if(q[i] > maxVal) {
+
+            maxVal = q[i];
+
+            bestActions = [i];
+
+        } else if (q[i] === maxVal) {
+
+            bestActions.push(i);
+
+        }
+
+    }
+
+    if(maxVal === 0 && bestActions.length === 4) return Math.floor(Math.random()*4);
+
+    return bestActions[Math.floor(Math.random() * bestActions.length)];
+
+}
+
+
+function step() {
+
+    const alpha = parseFloat(document.getElementById('alpha').value);
+
+    const gamma = parseFloat(document.getElementById('gamma').value);
+
+    const epsilon = parseFloat(document.getElementById('epsilon').value);
+
+   
+
+    const currStateStr = `${agentPos.x},${agentPos.y}`;
+
+   
+
+    let action;
+
+    if(Math.random() < epsilon) {
+
+        action = Math.floor(Math.random() * 4);
+
+    } else {
+
+        action = getBestAction(agentPos.x, agentPos.y);
+
+    }
+
+   
+
+    let nextX = agentPos.x + actions[action].dx;
+
+    let nextY = agentPos.y + actions[action].dy;
+
+    let reward = -1;
+
+    let done = false;
+
+
+    if(nextX < 0 || nextX >= gridSize || nextY < 0 || nextY >= gridSize || maze[nextY][nextX] === 1) {
+
+        reward = -10;
+
+        nextX = agentPos.x;
+
+        nextY = agentPos.y;
+
+    } else if (nextX === endPos.x && nextY === endPos.y) {
+
+        reward = 100;
+
+        done = true;
+
+    }
+
+
+    const nextStateStr = `${nextX},${nextY}`;
+
+   
+
+    let oldQ = qTable[currStateStr][action];
+
+    let maxNextQ = -Infinity;
+
+    for(let i=0; i<4; i++) {
+
+        if(qTable[nextStateStr][i] > maxNextQ) maxNextQ = qTable[nextStateStr][i];
+
+    }
+
+   
+
+    if(done) maxNextQ = 0;
+
+   
+
+    let newQ = oldQ + alpha * (reward + gamma * maxNextQ - oldQ);
+
+    qTable[currStateStr][action] = newQ;
+
+   
+
+    agentPos = {x: nextX, y: nextY};
+
+    steps++;
+
+   
+
+    updateAgentView();
+
+    updateStats();
+
+    renderCellVisual(parseInt(currStateStr.split(',')[0]), parseInt(currStateStr.split(',')[1]));
+
+   
+
+    if(done) {
+
+        endEpisode(true);
+
+    } else if (steps > gridSize * gridSize * 5) {
+
+        endEpisode(false);
+
+    }
+
+}
+
+
+function endEpisode(success) {
+
+    episode++;
+
+   
+
+    // --- 紀錄訓練結果 ---
+
+    performanceHistory.push({
+
+        episode: episode,
+
+        steps: steps,
+
+        success: success
+
+    });
+
+    updatePerformanceChart(); // 更新圖表
+
+    // -------------------------
+
+
+    document.getElementById('disp-status').innerText = success ? "Success! (+100)" : "Failed/Timeout";
+
+    document.getElementById('disp-status').style.color = success ? "#2ecc71" : "#e74c3c";
+
+   
+
+    isEpisodeRunning = false;
+
+}
+
+
+function startNewEpisode() {
+
+    resetAgent();
+
+    steps = 0;
+
+    isEpisodeRunning = true;
+
+    updateStats();
+
+    document.getElementById('disp-status').style.color = "#2c3e50";
+
+    document.getElementById('disp-status').innerText = "Running...";
+
+}
+
+
+// --- 訓練迴圈控制 (分割為標準和加速) ---
+
+
+function updateTrainingButtons(mode) {
+
+    const btnStandard = document.getElementById('btn-standard-train');
+
+    const btnFast = document.getElementById('btn-fast-train');
+
+   
+
+    if (mode === 'standard') {
+
+        btnStandard.innerText = "暫停標準訓練";
+
+        btnStandard.classList.replace('success', 'secondary');
+
+        btnFast.disabled = true;
+
+    } else if (mode === 'fast') {
+
+        btnFast.innerText = "暫停加速訓練";
+
+        btnFast.classList.replace('success', 'secondary');
+
+        btnStandard.disabled = true;
+
+    }
+
+}
+
+
+function stopTraining() {
+
+    isTraining = false;
+
+    clearTimeout(trainingTimer);
+
+   
+
+    const btnStandard = document.getElementById('btn-standard-train');
+
+    const btnFast = document.getElementById('btn-fast-train');
+
+   
+
+    if (btnStandard) {
+
+        btnStandard.innerText = "開始標準訓練 (逐格)";
+
+        btnStandard.classList.replace('secondary', 'success');
+
+        btnStandard.disabled = false;
+
+    }
+
+    if (btnFast) {
+
+        btnFast.innerText = "開始加速訓練 (批次)";
+
+        btnFast.classList.replace('secondary', 'success');
+
+        btnFast.disabled = false;
+
+    }
+
+    currentTrainingMode = 'none';
+
+}
+
+
+
+// A. 標準訓練模式 (慢速、逐格動畫)
+
+function toggleStandardTraining() {
+
+    if (isTraining && currentTrainingMode === 'standard') {
+
+        stopTraining();
+
+    } else {
+
+        stopTraining();
+
+        isTraining = true;
+
+        currentTrainingMode = 'standard';
+
+        updateTrainingButtons('standard');
+
+        trainingLoopStandard();
+
+    }
+
+}
+
+
+function trainingLoopStandard() {
+
+    if(!isTraining || currentTrainingMode !== 'standard') return;
+
+
+    if(!isEpisodeRunning) {
+
+        startNewEpisode();
+
+    }
+
+   
+
+    step();
+
+
+    let delay = document.getElementById('speed').value;
+
+    delay = 500 - delay;
+
+   
+
+    if(!isEpisodeRunning) {
+
+        trainingTimer = setTimeout(trainingLoopStandard, 100);
+
+    } else {
+
+        if(delay <= 0) {
+
+           requestAnimationFrame(trainingLoopStandard);
+
+        } else {
+
+           trainingTimer = setTimeout(trainingLoopStandard, delay);
+
+        }
+
+    }
+
+}
+
+
+
+// B. 加速訓練模式 (批次運算、快速收斂)
+
+function toggleFastTraining() {
+
+    if (isTraining && currentTrainingMode === 'fast') {
+
+        stopTraining();
+
+    } else {
+
+        stopTraining();
+
+        isTraining = true;
+
+        currentTrainingMode = 'fast';
+
+        updateTrainingButtons('fast');
+
+        trainingLoopFast();
+
+    }
+
+}
+
+
+function trainingLoopFast() {
+
+    if(!isTraining || currentTrainingMode !== 'fast') return;
+
+
+    let delay = document.getElementById('speed').value;
+
+    delay = 500 - delay;
+
+   
+
+    let stepsPerFrame = (delay < 10) ? 50 : 5;
+
+
+    for(let i=0; i<stepsPerFrame; i++) {
+
+        if(!isEpisodeRunning) {
+
+            startNewEpisode();
+
+        }
+
+       
+
+        step();
+
+       
+
+        if(!isEpisodeRunning) break;
+
+    }
+
+
+    if(!isEpisodeRunning) {
+
+        trainingTimer = setTimeout(trainingLoopFast, 100);
+
+    } else {
+
+        if(delay <= 0) {
+
+           requestAnimationFrame(trainingLoopFast);
+
+        } else {
+
+           trainingTimer = setTimeout(trainingLoopFast, delay);
+
+        }
+
+    }
+
+}
+
+
+function singleStep() {
+
+    stopTraining();
+
+    if(!isEpisodeRunning) startNewEpisode();
+
+    step();
+
+}
+
+
+// --- 視覺化與輔助功能 ---
+
+
+function resetQTable() {
+
+    stopTraining();
+
+    for(let key in qTable) {
+
+        qTable[key] = {0:0, 1:0, 2:0, 3:0};
+
+    }
+
+    episode = 0;
+
+    performanceHistory = []; // 清除歷史記錄
+
+    updatePerformanceChart(); // 重置圖表
+
+    renderMazeVisuals();
+
+    updateStats();
+
+    alert("Q-Table 已重置");
+
+}
+
+
+function updateStats() {
+
+    document.getElementById('disp-episode').innerText = episode;
+
+    document.getElementById('disp-steps').innerText = steps;
+
+}
+
+
+function renderMazeVisuals() {
+
+    for(let y=0; y<gridSize; y++) {
+
+        for(let x=0; x<gridSize; x++) {
+
+            renderCellVisual(x, y);
+
+        }
+
+    }
+
+}
+
+
+function renderCellVisual(x, y) {
+
+    if(maze[y][x] === 1) return;
+
+
+    const cell = document.querySelector(`.cell[data-x='${x}'][data-y='${y}']`);
+
+    if(!cell) return;
+
+   
+
+    const qs = qTable[`${x},${y}`];
+
+    const vals = Object.values(qs);
+
+    const maxQ = Math.max(...vals);
+
+    const bestAction = getBestAction(x, y);
+
+   
+
+    const tooltip = cell.querySelector('.q-tooltip');
+
+    if(tooltip) {
+
+        tooltip.innerHTML = `Up: ${qs[0].toFixed(2)}<br>Rt: ${qs[1].toFixed(2)}<br>Dn: ${qs[2].toFixed(2)}<br>Lt: ${qs[3].toFixed(2)}`;
+
+    }
+
+
+    if(document.getElementById('check-heatmap').checked) {
+
+        if(maxQ > 0) {
+
+            let intensity = Math.min(1, maxQ / 100);
+
+            cell.style.backgroundColor = `rgba(46, 204, 113, ${0.1 + intensity * 0.9})`;
+
+        } else if (maxQ < 0) {
+
+            let intensity = Math.min(1, Math.abs(maxQ) / 10);
+
+            cell.style.backgroundColor = `rgba(231, 76, 60, ${0.1 + intensity * 0.5})`;
+
+        } else {
+
+             if(maze[y][x] !== 2 && maze[y][x] !== 3) cell.style.backgroundColor = 'var(--path-color)';
+
+        }
+
+    } else {
+
+        if(maze[y][x] !== 2 && maze[y][x] !== 3) cell.style.backgroundColor = 'var(--path-color)';
+
+    }
+
+
+    const arrowEl = cell.querySelector('.arrow');
+
+    if(document.getElementById('check-arrows').checked && maxQ !== 0) {
+
+        const arrowChars = ['↑', '→', '↓', '←'];
+
+        arrowEl.innerText = arrowChars[bestAction];
+
+        arrowEl.style.opacity = 0.7;
+
+        arrowEl.style.color = (maxQ < 0) ? '#c0392b' : '#27ae60';
+
+    } else {
+
+        arrowEl.style.opacity = 0;
+
+    }
+
+}
+
+
+function showBestPath() {
+
+    stopTraining();
+
+    resetAgent();
+
+   
+
+    let pathSteps = 0;
+
+    let pathTimer = setInterval(() => {
+
+        let action = getBestAction(agentPos.x, agentPos.y);
+
+        let nextX = agentPos.x + actions[action].dx;
+
+        let nextY = agentPos.y + actions[action].dy;
+
+       
+
+        if(nextX >= 0 && nextX < gridSize && nextY >= 0 && nextY < gridSize && maze[nextY][nextX] !== 1) {
+
+            agentPos = {x: nextX, y: nextY};
+
+            updateAgentView();
+
+        }
+
+       
+
+        pathSteps++;
+
+       
+
+        if((agentPos.x === endPos.x && agentPos.y === endPos.y) || pathSteps > gridSize*gridSize*2) {
+
+            clearInterval(pathTimer);
+
+            if(agentPos.x === endPos.x) alert(`抵達終點！步數: ${pathSteps}`);
+
+            else alert("無法抵達終點 (可能無路可走或陷入迴圈)");
+
+        }
+
+    }, 200);
+
+}
+
+
+
+// --- 圖表邏輯 (Chart.js) ---
+
+
+function setupChart() {
+
+    const ctx = document.getElementById('performanceChart').getContext('2d');
+
+   
+
+    const dataPoints = performanceHistory.map(h => ({
+
+        x: h.episode,
+
+        y: h.steps,
+
+        success: h.success
+
+    }));
+
+
+    const backgroundColors = dataPoints.map(p => p.success ? '#2ecc71' : '#e74c3c');
+
+
+    const config = {
+
+        type: 'line',
+
+        data: {
+
+            datasets: [{
+
+                label: '每回合步數',
+
+                data: dataPoints,
+
+                borderColor: '#3498db',
+
+                backgroundColor: backgroundColors,
+
+                pointRadius: 3,
+
+                tension: 0.1,
+
+                fill: false,
+
+                segment: {
+
+                    borderColor: ctx => ctx.p0.parsed.y > 0 ? '#3498db' : '#e74c3c',
+
+                }
+
+            }]
+
+        },
+
+        options: {
+
+            responsive: true,
+
+            maintainAspectRatio: false,
+
+            scales: {
+
+                x: {
+
+                    type: 'linear',
+
+                    position: 'bottom',
+
+                    title: { display: true, text: '回合數 (Episode)' },
+
+                    min: 0
+
+                },
+
+                y: {
+
+                    type: 'linear',
+
+                    position: 'left',
+
+                    title: { display: true, text: '步數 (Steps)' },
+
+                    min: 0
+
+                }
+
+            },
+
+            plugins: {
+
+                tooltip: {
+
+                    callbacks: {
+
+                        label: function(context) {
+
+                            const data = context.raw;
+
+                            const status = data.success ? '成功 ✅' : '失敗 ❌';
+
+                            return `步數: ${data.y} | 狀態: ${status}`;
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    };
+
+   
+
+    if(myChart) {
+
+        myChart.destroy();
+
+    }
+
+    myChart = new Chart(ctx, config);
+
+}
+
+
+function updatePerformanceChart() {
+
+    if (!myChart) return;
+
+
+    const dataPoints = performanceHistory.map(h => ({
+
+        x: h.episode,
+
+        y: h.steps,
+
+        success: h.success
+
+    }));
+
+
+    const backgroundColors = dataPoints.map(p => p.success ? '#2ecc71' : '#e74c3c');
+
+   
+
+    myChart.data.datasets[0].data = dataPoints;
+
+    myChart.data.datasets[0].pointBackgroundColor = backgroundColors;
+
+   
+
+    // 讓 X 軸自動擴展
+
+    myChart.options.scales.x.max = episode + Math.ceil(episode * 0.1);
+
+   
+
+    // 使用 'none' 禁用動畫以提高性能
+
+    myChart.update('none');
+
+}
+
+
+
+// --- 存檔與讀檔 (不變) ---
+
+function saveMaze() {
+
+    const data = {
+
+        size: gridSize,
+
+        maze: maze,
+
+        start: startPos,
+
+        end: endPos
+
+    };
+
+    const jsonStr = JSON.stringify(data);
+
+    localStorage.setItem('savedMaze', jsonStr);
+
+   
+
+    navigator.clipboard.writeText(jsonStr).then(() => {
+
+        alert("迷宮已儲存到 LocalStorage 並複製到剪貼簿！");
+
+    }, () => {
+
+        alert("迷宮已儲存到 LocalStorage！");
+
+    });
+
+}
+
+
+function loadMazeUser() {
+
+    let jsonStr = prompt("請貼上迷宮 JSON (若留空則讀取上次存檔):");
+
+    if(!jsonStr) {
+
+        jsonStr = localStorage.getItem('savedMaze');
+
+    }
+
+   
+
+    if(jsonStr) {
+
+        try {
+
+            const data = JSON.parse(jsonStr);
+
+            gridSize = data.size;
+
+            document.getElementById('size-slider').value = gridSize;
+
+            document.getElementById('size-val').innerText = gridSize;
+
+            document.getElementById('size-val2').innerText = gridSize;
+
+           
+
+            initMaze();
+
+           
+
+            maze = data.maze;
+
+            startPos = data.start;
+
+            endPos = data.end;
+
+           
+
+            qTable = {};
+
+            for(let y=0; y<gridSize; y++) {
+
+                for(let x=0; x<gridSize; x++) {
+
+                    qTable[`${x},${y}`] = {0:0, 1:0, 2:0, 3:0};
+
+                }
+
+            }
+
+           
+
+            renderGrid();
+
+            alert("迷宮載入成功！");
+
+        } catch(e) {
+
+            alert("載入失敗：格式錯誤");
+
+            console.error(e);
+
+        }
+
+    } else {
+
+        alert("沒有找到存檔。");
+
+    }
+
+}
+
+
+function loadExampleMaze() {
+
+    gridSize = 10;
+
+    document.getElementById('size-slider').value = 10;
+
+    updateUIParams();
+
+    initMaze();
+
+   
+
+    const walls = [[1,1],[1,2],[1,3],[2,3],[3,3],[5,1],[5,2],[5,5],[5,6],[5,7],[6,5],[7,5],[8,5],[3,7],[3,8],[3,9]];
+
+    walls.forEach(w => {
+
+        maze[w[1]][w[0]] = 1;
+
+    });
+
+    renderGrid();
+
+}
+
+
+function generateMaze() {
+
+    gridSize = parseInt(document.getElementById('size-slider').value);
+
+    initMaze();
+
+}
+
+</script>
+
+</body>
+
+</html>
